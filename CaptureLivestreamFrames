@@ -1,0 +1,50 @@
+# Import used libraries
+import cv2
+import os
+import time
+import streamlink
+from datetime import datetime
+
+def capture_frames(url, base_folder, interval=1, duration=3600):
+    # Create a subfolder for this session of capturing frames from a live stream labeled by date.
+    session_folder = datetime.now().strftime("%Y%m%d_%H%M%S")
+    full_path = os.path.join(base_folder, session_folder)
+    os.makedirs(full_path, exist_ok=True)
+
+    # Get the livestream using streamlink
+    streams = streamlink.streams(url)
+    if not streams:
+        print("No streams found, exiting...")
+        return
+    stream_url = streams['best'].url  # Capture the best resolution of the stream
+
+    # Connect to the stream
+    cap = cv2.VideoCapture(stream_url)
+    if not cap.isOpened():
+        print("Failed to open the stream.")
+        return
+
+    frames_to_skip = 5 # For every 1 second we can capture 3 to 4 frames max. 3 = 1 fps
+    frame_count = 0  # Initialize frame count to keep track of when to save a frame
+
+    start_time = time.time()
+    while time.time() - start_time < duration:
+        ret, frame = cap.read()
+        if not ret:
+            break
+        frame_count += 1
+
+        # Capture and save the frame every 'frames_to_skip' frames
+        if frame_count % frames_to_skip == 0:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            frame_filename = os.path.join(full_path, f"{timestamp}.png")
+            cv2.imwrite(frame_filename, frame)
+            print(f"Saved {frame_filename}")
+
+    cap.release()
+
+if __name__ == "__main__":
+    livestream_url = "" # URL to the youtube livestream you are capturing
+    base_folder = "" # Base folder where the session folder is created and frames are stored (local)
+    capture_frames(livestream_url, base_folder)
+    # Initialize the program
