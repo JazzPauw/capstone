@@ -1,0 +1,68 @@
+# Import libraries
+from ultralytics import YOLO
+from ultralytics.solutions import object_counter
+import cv2
+import numpy as np
+import time
+import torch
+
+# Attempt to use GPU if possible  
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+tensor = torch.tensor([1.0, 2.0], device=device)
+
+# Load YOLO model and video
+model = YOLO('yolov8n.pt')
+cap = cv2.VideoCapture(r"") 
+
+assert cap.isOpened(), "Error reading video file"
+w, h, fps = (int(cap.get(x)) for x in (cv2.CAP_PROP_FRAME_WIDTH, cv2.CAP_PROP_FRAME_HEIGHT, cv2.CAP_PROP_FPS))
+
+region_points =[(1800, 1020),(830, 500)] # Single line
+region_points_2 = [(420, 474), (403, 592), (-54, 593), (-24, 484)] # Region box 2 (Unused) 
+# Video writer
+video_writer = cv2.VideoWriter("object_counting_output.avi",
+                       cv2.VideoWriter_fourcc(*'mp4v'),
+                       fps,
+                       (w, h))
+
+# Init Object Counter
+counter = object_counter.ObjectCounter()
+counter.set_args(view_img=True,
+                 reg_pts=region_points,
+                 classes_names=model.names,
+                 draw_tracks=True,
+                 line_thickness=1)
+counter_2 = object_counter.ObjectCounter()
+counter_2.set_args(view_img=True,
+                   reg_pts=region_points_2,
+                   classes_names=model.names,
+                   draw_tracks=True,
+                   line_thickness=1)
+frame_count = 0
+start_time = time.time()
+
+while cap.isOpened():
+    success, im0 = cap.read()
+    if not success:
+        print("Video frame is empty or video processing has been successfully completed.")
+        break
+    
+    # Only process every 3rd frame, to save on processing power
+    if frame_count % 3 == 0:
+        tracks = model.track(im0, conf=0.1, persist=True, show=False, classes=0)
+        im0 = counter.start_counting(im0, tracks)
+        current_time = time.time()
+        elapsed_time = current_time - start_time
+        if elapsed_time > 0:
+            current_fps = frame_count / elapsed_time
+            #print(f"Current FPS: {current_fps:.2f}")
+
+    video_writer.write(im0)
+    frame_count += 1  # Increment frame count
+    
+    if cv2.waitKey(1) & 0xFF == ord('q'):  # Press 'q' to quit
+        break   
+
+cap.release()
+video_writer.release()
+cv2.destroyAllWindows()
