@@ -24,7 +24,7 @@ def capture_frames(url, base_folder, interval=1, duration=3600):
         print("Failed to open the stream.")
         return
 
-    frames_to_skip = 5 # For every 1 second we can capture 3 to 4 frames max. 3 = 1 fps
+    frames_to_skip = 3 # For every 1 second we can capture 3 to 4 frames max. 3 = 1 fps
     frame_count = 0  # Initialize frame count to keep track of when to save a frame
 
     start_time = time.time()
@@ -44,7 +44,7 @@ def capture_frames(url, base_folder, interval=1, duration=3600):
     cap.release()
 
 if __name__ == "__main__":
-    livestream_url = "" # URL to the youtube livestream you are capturing
-    base_folder = "" # Base folder where the session folder is created and frames are stored (local)
+    livestream_url = "https://www.youtube.com/watch?v=YLSELFy-iHQ"
+    base_folder = "C:\\Users\\jazzp\\Documents\\FetchFrames"
     capture_frames(livestream_url, base_folder)
     # Initialize the program
