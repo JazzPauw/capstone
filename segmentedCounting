@@ -1,0 +1,88 @@
+from ultralytics import YOLO
+from ultralytics.solutions import object_counter
+from ultralytics.utils.plotting import Annotator, colors
+from collections import defaultdict
+import cv2
+import numpy as np
+import time
+import torch
+import os
+# Google drive implementation for Colabratory
+# from google.colab import drive
+# drive.mount('/content/drive', force_remount=True)
+
+model = YOLO('yolov8n-seg.pt')
+video_path = r'' # Path to folder of images can also go here
+if os.path.isdir(video_path):
+    frame_files = sorted([os.path.join(video_path, f) for f in os.listdir(video_path) if f.endswith('.png')])
+    source = frame_files  # Use frame files as source
+    use_video = False
+else:
+    cap = cv2.VideoCapture(video_path)
+    assert cap.isOpened(), "Error reading video file"
+    source = cap  # Use video capture as source
+    use_video = True
+
+if use_video:
+    w, h, fps = (int(cap.get(x)) for x in (cv2.CAP_PROP_FRAME_WIDTH, cv2.CAP_PROP_FRAME_HEIGHT, cv2.CAP_PROP_FPS))
+else:
+    first_frame = cv2.imread(frame_files[0])
+    h, w = first_frame.shape[:2]
+    fps = 1 # Change depending on settings while capturing frames
+
+video_writer = cv2.VideoWriter(r"",
+                               cv2.VideoWriter_fourcc(*'mp4v'),
+                               fps,
+                               (w, h))
+
+
+region_points =[(0, 0),(0, 0)] # Single line
+region_points_2 = [(420, 474), (403, 592), (-54, 593), (-24, 484)] # Region box 2 (Unused) 
+
+# Init Object Counter
+counter = object_counter.ObjectCounter()
+counter.set_args(view_img=True,
+                 reg_pts=region_points,
+                 classes_names=model.names,
+                 draw_tracks=True,
+                 line_thickness=1)
+counter_2 = object_counter.ObjectCounter()
+counter_2.set_args(view_img=True,
+                   reg_pts=region_points_2,
+                   classes_names=model.names,
+                   draw_tracks=True,
+                   line_thickness=1)
+frame_count = 0
+start_time = time.time()
+
+def track_function(im0):
+    tracks = model.track(im0, conf=0.1, persist=True, show=False, classes=0)
+    im0 = counter.start_counting(im0, tracks)    
+
+while True:
+    if use_video:
+        success, im0 = cap.read()
+        if not success:
+            break
+    else:
+        if frame_count >= len(frame_files):
+            break
+        im0 = cv2.imread(frame_files[frame_count])
+
+    # Object detection and tracking
+    if use_video:
+        if frame_count % 3 == 0: # Use every 3rd frame on videos
+            track_function(im0)
+    else:
+        track_function(im0)
+
+    video_writer.write(im0)
+    frame_count += 1
+
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+
+if use_video:
+    cap.release()
+video_writer.release()
+cv2.destroyAllWindows()
