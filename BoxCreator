@@ -1,0 +1,107 @@
+from ultralytics import YOLO
+from ultralytics.solutions import object_counter
+import cv2
+import numpy as np
+import time
+import torch
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+tensor = torch.tensor([1.0, 2.0], device=device)
+model = YOLO('yolov8n.pt')
+cap = cv2.VideoCapture(r'C:\Users\jazzp\Documents\Project\Yolo\longvideo.mp4')
+if not cap.isOpened():
+    print("Error opening video stream or file")
+w, h, fps = (int(cap.get(x)) for x in (cv2.CAP_PROP_FRAME_WIDTH, cv2.CAP_PROP_FRAME_HEIGHT, cv2.CAP_PROP_FPS))
+video_writer = cv2.VideoWriter("object_counting_output.avi",
+                       cv2.VideoWriter_fourcc(*'mp4v'),
+                       fps,
+                       (w, h))
+
+# Initialize global variables for the points adjust as needed
+points = {
+    'Reg1L': (694, 576),
+    'Reg1R': (1188, 564),
+    'DeRegL': (672, 666),
+    'DeRegR': (1275, 650),
+    'DeReg1L': (651, 762),
+    'DeReg1R': (1379, 755),
+    'Reg2L': (628, 889),
+    'Reg2R': (1485, 870),
+}
+selected_point = None
+
+counter = object_counter.ObjectCounter()
+counter.set_args(view_img=True,
+                 reg_pts=[points['Reg1L'], points['Reg1R']],
+                 classes_names=model.names,
+                 draw_tracks=True,
+                 line_thickness=1)
+
+
+
+# Mouse callback function
+def draw_regions(event, x, y, flags, param):
+    global points, selected_point
+
+    # Check for left mouse button press event
+    if event == cv2.EVENT_LBUTTONDOWN:
+        # Find the nearest point
+        for pname, p in points.items():
+            if abs(x - p[0]) < 10 and abs(y - p[1]) < 10:
+                selected_point = pname
+                break
+
+    # Check for mouse movement event
+    elif event == cv2.EVENT_MOUSEMOVE and selected_point is not None:
+        points[selected_point] = (x, y)
+
+    # Check for left mouse button release event
+    elif event == cv2.EVENT_LBUTTONUP:
+        selected_point = None
+
+# Function to draw the defined regions
+def draw_all_regions(img, points):
+    # Draw lines for Region 1
+    cv2.line(img, points['Reg1L'], points['Reg1R'], (255, 0, 0), 2)
+    cv2.line(img, points['Reg1R'], points['DeRegR'], (255, 0, 0), 2)
+    cv2.line(img, points['DeRegR'], points['DeRegL'], (255, 0, 0), 2)
+    cv2.line(img, points['DeRegL'], points['Reg1L'], (255, 0, 0), 2)
+
+    # Draw lines for Region 2 (De-registration region)
+    cv2.line(img, points['DeRegL'], points['DeRegR'], (0, 255, 0), 2)
+    cv2.line(img, points['DeRegR'], points['DeReg1R'], (0, 255, 0), 2)
+    cv2.line(img, points['DeReg1R'], points['DeReg1L'], (0, 255, 0), 2)
+    cv2.line(img, points['DeReg1L'], points['DeRegL'], (0, 255, 0), 2)
+
+    # Draw lines for Region 3
+    cv2.line(img, points['DeReg1L'], points['DeReg1R'], (0, 0, 255), 2)
+    cv2.line(img, points['DeReg1R'], points['Reg2R'], (0, 0, 255), 2)
+    cv2.line(img, points['Reg2R'], points['Reg2L'], (0, 0, 255), 2)
+    cv2.line(img, points['Reg2L'], points['DeReg1L'], (0, 0, 255), 2)
+
+# Set up window and callback function
+cv2.namedWindow('Frame')
+cv2.setMouseCallback('Frame', draw_regions)
+
+# Read and process each frame
+while cap.isOpened():
+    ret, frame = cap.read()
+    if ret:
+        # Draw the regions on the frame
+        draw_all_regions(frame, points)
+
+        # Print the points in the desired format
+        print("points = {")
+        for point, coords in points.items():
+            print(f"    '{point}': {coords},")
+        print("}")
+
+        video_writer.write(frame)
+        # Press Q on keyboard to exit
+        if cv2.waitKey(25) & 0xFF == ord('q'):
+            break
+    else:
+        break
+
+# Release the video capture and windows
+cap.release()
+cv2.destroyAllWindows()
